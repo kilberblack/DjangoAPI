@@ -1,8 +1,8 @@
 # DjangoAPI
 
 
-## Install dependencies
-<code>
-pip install djangorestframework <br>
-pip install django-cors-headers
+>[!IMPORTANT]
+><code>
+>djangorestframework <br>
+>django-cors-headers
 </code>
