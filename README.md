@@ -2,7 +2,6 @@
 
 
 >[!IMPORTANT]
-><code>
->djangorestframework <br>
->django-cors-headers
-</code>
+><code>djangorestframework <br>
+>django-cors-headers </code>
+
