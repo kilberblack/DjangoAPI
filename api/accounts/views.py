@@ -8,6 +8,7 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from .serializers import UserSerializer
+import logging
 
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -66,9 +67,17 @@ def register(request):
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+# Set up logging
+logger = logging.getLogger(__name__)
 #User Login
 @api_view(['POST'])
 def login(request):
+    # Log the incoming request data
+    logger.debug(f"Login request data: {request.data}")
+
+    # Validate that 'username' and 'password' are in the request data
+    if 'username' not in request.data or 'password' not in request.data:
+        return Response({"error": "Username and password are required"}, status=status.HTTP_400_BAD_REQUEST)
 
     user = get_object_or_404(User, username=request.data['username'])
 
@@ -76,9 +85,9 @@ def login(request):
         return Response({"error": "Invalid password"}, status=status.HTTP_400_BAD_REQUEST)
 
     token, created = Token.objects.get_or_create(user=user)
-    serializer =  UserSerializer(instance=user)
+    serializer = UserSerializer(instance=user)
 
-    return Response({"token":token.key, "user": serializer.data}, status=status.HTTP_200_OK)
+    return Response({"token": token.key, "user": serializer.data}, status=status.HTTP_200_OK)
 
 #User Profile
 @api_view(['POST'])
