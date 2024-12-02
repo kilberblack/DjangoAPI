@@ -7,7 +7,9 @@ from rest_framework.parsers import JSONParser
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
-from .serializers import UserSerializer
+from .models import Asignatura, Asistencia
+from .serializers import UserSerializer,AsignaturaSerializer, AsistenciaSerializer
+
 import logging
 
 @authentication_classes([TokenAuthentication])
@@ -98,3 +100,45 @@ def profile(request):
     print(request.user)
 
     return Response("You are logged in with {}".format(request.user.username), status=status.HTTP_200_OK )
+
+@api_view(['GET', 'POST'])
+def asignatura_list(request):
+    if request.method == 'GET':
+        asignaturas = Asignatura.objects.all()
+        serializer = AsignaturaSerializer(asignaturas, many=True)
+        return Response(serializer.data)
+    
+    elif request.method == 'POST':
+        serializer = AsignaturaSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+def asistencia_list(request, asignatura_id):
+    try:
+        asistencias = Asistencia.objects.filter(asignatura_id=asignatura_id)
+        serializer = AsistenciaSerializer(asistencias, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Asistencia.DoesNotExist:
+        return Response({"error": "No se encontraron asistencias para esta asignatura."}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+def asistencia_por_usuario(request, usuario_id):
+    try:
+        asistencias = Asistencia.objects.filter(usuario_id=usuario_id)
+        serializer = AsistenciaSerializer(asistencias, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Asistencia.DoesNotExist:
+        return Response({"error": "No se encontraron asistencias para este usuario."}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+def incrementar_asistencia(request, asignatura_id, usuario_id):
+    try:
+        asistencia = Asistencia.objects.get(asignatura_id=asignatura_id, usuario_id=usuario_id)
+        asistencia.contador += 1  # Incrementar el contador
+        asistencia.save()
+        return Response({'mensaje': 'Asistencia incrementada exitosamente', 'contador': asistencia.contador})
+    except Asistencia.DoesNotExist:
+        return Response({'error': 'Registro de asistencia no encontrado'}, status=status.HTTP_404_NOT_FOUND)
