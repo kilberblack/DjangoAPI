@@ -7,9 +7,8 @@ from rest_framework.parsers import JSONParser
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
-from .models import Asignatura, Asistencia
+from .models import Asignatura, Asistencia, PerfilUsuario
 from .serializers import UserSerializer,AsignaturaSerializer, AsistenciaSerializer
-
 import logging
 
 @authentication_classes([TokenAuthentication])
@@ -92,14 +91,12 @@ def login(request):
     return Response({"token": token.key, "user": serializer.data}, status=status.HTTP_200_OK)
 
 #User Profile
-@api_view(['POST'])
+@api_view(['GET'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def profile(request):
-
-    print(request.user)
-
-    return Response("You are logged in with {}".format(request.user.username), status=status.HTTP_200_OK )
+    user = request.user
+    return Response({"id": user.id, "username": user.username}, status=status.HTTP_200_OK)
 
 @api_view(['GET', 'POST'])
 def asignatura_list(request):
@@ -117,28 +114,62 @@ def asignatura_list(request):
 
 @api_view(['GET'])
 def asistencia_list(request, asignatura_id):
-    try:
-        asistencias = Asistencia.objects.filter(asignatura_id=asignatura_id)
-        serializer = AsistenciaSerializer(asistencias, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    except Asistencia.DoesNotExist:
-        return Response({"error": "No se encontraron asistencias para esta asignatura."}, status=status.HTTP_404_NOT_FOUND)
+    asistencias = Asistencia.objects.filter(asignatura_id=asignatura_id)
+    serializer = AsistenciaSerializer(asistencias, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def asistencia_por_usuario(request, usuario_id):
     try:
-        asistencias = Asistencia.objects.filter(usuario_id=usuario_id)
+        perfil_usuario = PerfilUsuario.objects.get(user_id=usuario_id)
+        asistencias = Asistencia.objects.filter(usuario=perfil_usuario)
         serializer = AsistenciaSerializer(asistencias, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    except Asistencia.DoesNotExist:
+    except PerfilUsuario.DoesNotExist:
         return Response({"error": "No se encontraron asistencias para este usuario."}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+def asignatura_por_usuario(request, usuario_id):
+    try:
+        perfil_usuario = PerfilUsuario.objects.get(user_id=usuario_id)
+        asignaturas = perfil_usuario.asignaturas.all()
+        serializer = AsignaturaSerializer(asignaturas, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except PerfilUsuario.DoesNotExist:
+        return Response({"error": "No se encontraron asignaturas para este usuario."}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['POST'])
 def incrementar_asistencia(request, asignatura_id, usuario_id):
     try:
-        asistencia = Asistencia.objects.get(asignatura_id=asignatura_id, usuario_id=usuario_id)
-        asistencia.contador += 1  # Incrementar el contador
+        perfil_usuario = PerfilUsuario.objects.get(user_id=usuario_id)
+        asignatura = Asignatura.objects.get(id=asignatura_id)
+        asistencia, created = Asistencia.objects.get_or_create(asignatura=asignatura, usuario=perfil_usuario)
+        asistencia.contador += 1
         asistencia.save()
         return Response({'mensaje': 'Asistencia incrementada exitosamente', 'contador': asistencia.contador})
-    except Asistencia.DoesNotExist:
-        return Response({'error': 'Registro de asistencia no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+    except PerfilUsuario.DoesNotExist:
+        return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+    except Asignatura.DoesNotExist:
+        return Response({'error': 'Asignatura no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def crear_asignatura(request):
+    serializer = AsignaturaSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+def asignar_asignatura_a_usuario(request, usuario_id, asignatura_id):
+    try:
+        perfil_usuario = PerfilUsuario.objects.get(user_id=usuario_id)
+        asignatura = Asignatura.objects.get(id=asignatura_id)
+        Asistencia.objects.create(usuario=perfil_usuario, asignatura=asignatura)
+        return Response({'mensaje': 'Asignatura asignada exitosamente'}, status=status.HTTP_201_CREATED)
+    except PerfilUsuario.DoesNotExist:
+        return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+    except Asignatura.DoesNotExist:
+        return Response({'error': 'Asignatura no encontrada'}, status=status.HTTP_404_NOT_FOUND)
